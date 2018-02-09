@@ -10,6 +10,7 @@ import configparser
 import base64
 import datetime
 import binascii
+import sqlite3
 
 class BanaanBot(pydle.Client):
     def on_connect(self):
@@ -36,9 +37,22 @@ class BanaanBot(pydle.Client):
         super().rawmsg(command, *args, **kwargs)
     def on_message(self, target, by, message):
         if by == 'Telegram':
-            self.on_message(target, "Banaan", message[(message.index(':')+1):].strip())
+            self.on_message(target, 'Banaan', message[(message.index(':')+1):].strip())
             return
         super().on_message(target, by, message)
+
+        if message.startswith('!'):
+            if message.find('=') > 0:
+                processQuoteAdd(self, target, by, message)
+            elif message.find('?') > 0:
+                processQuoteGet(self, target, by, message)
+            elif message.find('++') > 0:
+                processKarmaPlus(self, target, by, message)
+                print('plus ', message[1:message.find('++')])
+            elif message.find('--') > 0:
+                processKarmaMinus(self, target, by, message)
+                print('min ', message[1:message.find('--')])
+
         if message.startswith('!dig'):
             try:
                 processDig(self, target, by, message)
@@ -46,6 +60,102 @@ class BanaanBot(pydle.Client):
                 raise
         elif message.startswith('!cheap'):
             self.message(target, "<~Cameron> it's not expencive")
+
+def getDatabase():
+    conn = sqlite3.connect('banaan.db')
+    return conn
+
+def processQuoteAdd(self, target, by, message):
+    index = message.find('=')
+    if index > 0:
+        name = message[1:index].strip().lower()
+        quote = message[index+1:].strip()
+        if name and quote:
+            try:
+                conn = getDatabase()
+                conn.execute('INSERT INTO quotes (name, quote) VALUES (?, ?)', (name, quote,))
+                conn.commit()
+            except:
+                raise
+            finally:
+                conn.close()
+
+def processKarmaPlus(self, target, by, message):
+    index = message.find('++')
+    if index > 0:
+        name = message[1:index].strip().lower()
+        if name:
+            try:
+                karma = None
+                conn = getDatabase()
+                cursor = conn.execute('SELECT id, karma FROM karma WHERE name = ?', (name,))
+                data = cursor.fetchone()
+                if data:
+                    id, karma = data
+                    karma = karma + 1
+                    conn.execute('UPDATE karma SET karma = ? WHERE id = ?', (karma, id))
+                    conn.commit()
+                else:
+                    karma = 1
+                    conn.execute('INSERT INTO karma (name, karma) VALUES (?, ?)', (name, karma))
+                    conn.commit()
+                self.message(target, 'karma of {} is now {}'.format(name, karma))
+            except:
+                raise
+            finally:
+                conn.close()
+
+def processKarmaMinus(self, target, by, message):
+    index = message.find('--')
+    if index > 0:
+        name = message[1:index].strip().lower()
+        if name:
+            try:
+                karma = None
+                conn = getDatabase()
+                cursor = conn.execute('SELECT id, karma FROM karma WHERE name = ?', (name,))
+                data = cursor.fetchone()
+                if data:
+                    id, karma = data
+                    karma = karma - 1
+                    conn.execute('UPDATE karma SET karma = ? WHERE id = ?', (karma, id))
+                    conn.commit()
+                else:
+                    karma = -1
+                    conn.execute('INSERT INTO karma (name, karma) VALUES (?, ?)', (name, karma))
+                    conn.commit()
+                self.message(target, 'karma of {} is now {}'.format(name, karma))
+            except:
+                raise
+            finally:
+                conn.close()
+
+def processQuoteGet(self, target, by, message):
+    index = message.find('?')
+    if index > 0:
+        name = message[1:index].strip().lower()
+        if name:
+            try:
+                conn = getDatabase()
+                cursor = conn.execute('SELECT * FROM quotes WHERE name = ?', (name,))
+                data = cursor.fetchall()
+                if data:
+                    if len(data) > 1:
+                        tosend = ''
+                        for i in data:
+                            id, name, quote = i
+                            tosend = tosend + quote + ' ... '
+                        self.message(target, tosend[:-5])
+                    else:
+                        id, name, quote = data[0]
+                        self.message(target, quote)
+
+                else:
+                    self.message(target, 'kein quotes')
+            except:
+                raise
+            finally:
+                conn.close()
 
 def parseArguments(arguments):
     processed_arguments = dict()
