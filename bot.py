@@ -41,32 +41,35 @@ class BanaanBot(pydle.Client):
             return
         super().on_message(target, by, message)
 
-        if message.startswith('!'):
-            if message.find('=') > 0:
+        if isCommand(message):
+            if message.find('=', len(commandprefix)) > 0:
                 processQuoteAdd(self, target, by, message)
-            elif message.find('?') > 0:
+            elif message.find('?', len(commandprefix)) > 0:
                 processQuoteGet(self, target, by, message)
-            elif message.find('++') > 0:
+            elif message.find('++', len(commandprefix)) > 0:
                 processKarmaPlus(self, target, by, message)
-                print('plus ', message[1:message.find('++')])
-            elif message.find('--') > 0:
+            elif message.find('--', len(commandprefix)) > 0:
                 processKarmaMinus(self, target, by, message)
-                print('min ', message[1:message.find('--')])
 
-        if message.startswith('!dig'):
+        if isCommand(message,'dig'):
             try:
                 processDig(self, target, by, message)
             except:
                 raise
-        elif message.startswith('!cheap'):
+        elif isCommand(message,'cheap'):
             self.message(target, "<~Cameron> it's not expencive")
+
+def isCommand(input, command = None):
+    if command:
+        return input.startswith('{}{}'.format(config['Bot']['commandprefix'], command))
+    return input.startswith(config['Bot']['commandprefix'])
 
 def getDatabase():
     conn = sqlite3.connect('banaan.db')
     return conn
 
 def processQuoteAdd(self, target, by, message):
-    index = message.find('=')
+    index = message.find('=', len(commandprefix))
     if index > 0:
         name = message[1:index].strip().lower()
         quote = message[index+1:].strip()
@@ -81,7 +84,7 @@ def processQuoteAdd(self, target, by, message):
                 conn.close()
 
 def processKarmaPlus(self, target, by, message):
-    index = message.find('++')
+    index = message.find('++', len(commandprefix))
     if index > 0:
         name = message[1:index].strip().lower()
         if name:
@@ -106,7 +109,7 @@ def processKarmaPlus(self, target, by, message):
                 conn.close()
 
 def processKarmaMinus(self, target, by, message):
-    index = message.find('--')
+    index = message.find('--', len(commandprefix))
     if index > 0:
         name = message[1:index].strip().lower()
         if name:
@@ -131,7 +134,7 @@ def processKarmaMinus(self, target, by, message):
                 conn.close()
 
 def processQuoteGet(self, target, by, message):
-    index = message.find('?')
+    index = message.find('?', len(commandprefix))
     if index > 0:
         name = message[1:index].strip().lower()
         if name:
@@ -406,6 +409,7 @@ def uploadtext(text):
 
 config = configparser.ConfigParser()
 config.read('banaan.ini')
+commandprefix = config['Bot']['commandprefix']
 if 'Bot' in config:
     client = BanaanBot(config['Bot']['nickname'], realname=config['Bot']['realname'])
     client.connect(config['Bot']['server'], config['Bot']['port'], tls=True, tls_verify=False)
