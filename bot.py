@@ -14,7 +14,7 @@ import sqlite3
 
 conn = None
 
-class BanaanBot(pydle.Client):
+class BanaanBot(pydle.MinimalClient):
     def on_connect(self):
         super().on_connect()
         self.rawmsg('NICKSERV', 'IDENTIFY {}'.format(config['Bot']['nickserv']))
@@ -397,7 +397,6 @@ def uploadtext(text):
     r = requests.post('https://p.6core.net/', data = payload)
     return r.url
 
-
 config = configparser.ConfigParser()
 config.read('banaan.ini')
 commandprefix = config['Bot']['commandprefix']
@@ -407,7 +406,4 @@ if 'Bot' in config:
     try:
         client.handle_forever()
     except KeyboardInterrupt:
-        print("keyboard interrupt")
-        client.disconnect()
-        client.raw('QUIT :bepis')
-        raise
+        exit(0)
