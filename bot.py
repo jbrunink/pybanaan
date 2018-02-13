@@ -12,10 +12,12 @@ import datetime
 import binascii
 import sqlite3
 
+conn = None
+
 class BanaanBot(pydle.Client):
     def on_connect(self):
         super().on_connect()
-        self.rawmsg('NICKSERV', 'IDENTIFY %s' % config['Bot']['nickserv'])
+        self.rawmsg('NICKSERV', 'IDENTIFY {}'.format(config['Bot']['nickserv']))
         for i in config['Bot']['channels'].split(','):
             self.join(i)
         print('connected')
@@ -41,16 +43,6 @@ class BanaanBot(pydle.Client):
             return
         super().on_message(target, by, message)
 
-        if isCommand(message):
-            if message.find('=', len(commandprefix)) > 0:
-                processQuoteAdd(self, target, by, message)
-            elif message.find('?', len(commandprefix)) > 0:
-                processQuoteGet(self, target, by, message)
-            elif message.find('++', len(commandprefix)) > 0:
-                processKarmaPlus(self, target, by, message)
-            elif message.find('--', len(commandprefix)) > 0:
-                processKarmaMinus(self, target, by, message)
-
         if isCommand(message,'dig'):
             try:
                 processDig(self, target, by, message)
@@ -58,6 +50,15 @@ class BanaanBot(pydle.Client):
                 raise
         elif isCommand(message,'cheap'):
             self.message(target, "<~Cameron> it's not expencive")
+        elif isCommand(message):
+            if message.find('=', len(commandprefix)) > 0:
+                processQuoteAdd(self, target, by, message)
+            elif message.find('++', len(commandprefix)) > 0:
+                processKarmaPlus(self, target, by, message)
+            elif message.find('--', len(commandprefix)) > 0:
+                processKarmaMinus(self, target, by, message)
+            else:
+                processQuoteGet(self, target, by, message)
 
 def isCommand(input, command = None):
     if command:
@@ -65,6 +66,9 @@ def isCommand(input, command = None):
     return input.startswith(config['Bot']['commandprefix'])
 
 def getDatabase():
+    global conn
+    if conn:
+        return conn
     conn = sqlite3.connect('banaan.db')
     return conn
 
@@ -80,8 +84,6 @@ def processQuoteAdd(self, target, by, message):
                 conn.commit()
             except:
                 raise
-            finally:
-                conn.close()
 
 def processKarmaPlus(self, target, by, message):
     index = message.find('++', len(commandprefix))
@@ -105,8 +107,6 @@ def processKarmaPlus(self, target, by, message):
                 self.message(target, 'karma of {} is now {}'.format(name, karma))
             except:
                 raise
-            finally:
-                conn.close()
 
 def processKarmaMinus(self, target, by, message):
     index = message.find('--', len(commandprefix))
@@ -130,35 +130,26 @@ def processKarmaMinus(self, target, by, message):
                 self.message(target, 'karma of {} is now {}'.format(name, karma))
             except:
                 raise
-            finally:
-                conn.close()
 
 def processQuoteGet(self, target, by, message):
-    index = message.find('?', len(commandprefix))
-    if index > 0:
-        name = message[1:index].strip().lower()
-        if name:
-            try:
-                conn = getDatabase()
-                cursor = conn.execute('SELECT * FROM quotes WHERE name = ?', (name,))
-                data = cursor.fetchall()
-                if data:
-                    if len(data) > 1:
-                        tosend = ''
-                        for i in data:
-                            id, name, quote = i
-                            tosend = tosend + quote + ' ... '
-                        self.message(target, tosend[:-5])
-                    else:
-                        id, name, quote = data[0]
-                        self.message(target, quote)
-
+    name = message[1:].strip().lower()
+    if name:
+        try:
+            conn = getDatabase()
+            cursor = conn.execute('SELECT * FROM quotes WHERE name = ?', (name,))
+            data = cursor.fetchall()
+            if data:
+                if len(data) > 1:
+                    tosend = ''
+                    for i in data:
+                        id, name, quote = i
+                        tosend = tosend + quote + ' ... '
+                    self.message(target, '{} is: {}'.format(name, tosend[:-5]))
                 else:
-                    self.message(target, 'kein quotes')
-            except:
-                raise
-            finally:
-                conn.close()
+                    id, name, quote = data[0]
+                    self.message(target, '{} is: {}'.format(name, quote))
+        except:
+            raise
 
 def parseArguments(arguments):
     processed_arguments = dict()
