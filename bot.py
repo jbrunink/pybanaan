@@ -12,12 +12,14 @@ import datetime
 import binascii
 import sqlite3
 
+MyBaseClient = pydle.featurize(pydle.MinimalClient, pydle.features.ircv3.SASLSupport)
+
 conn = None
 
-class BanaanBot(pydle.MinimalClient):
+class BanaanBot(MyBaseClient):
     def on_connect(self):
         super().on_connect()
-        self.rawmsg('NICKSERV', 'IDENTIFY {}'.format(config['Bot']['nickserv']))
+        self.rawmsg('NICKSERV', 'IDENTIFY {password}'.format(password=config['Bot']['nickserv']))
         for i in config['Bot']['channels'].split(','):
             self.join(i)
         print('connected')
@@ -26,7 +28,7 @@ class BanaanBot(pydle.MinimalClient):
         #print(message)
     def on_raw(self, message):
         super().on_raw(message)
-        print('RECEIVED: ' + str(message),end='')
+        print('RECEIVED: ' + str(message), end='')
         if '464' in str(message).split(" "):
             self.rawmsg('PASS', '{}'.format(config['Bot']['pass']))
     def on_channel_message(self, target, by, message):
@@ -43,12 +45,12 @@ class BanaanBot(pydle.MinimalClient):
             return
         super().on_message(target, by, message)
 
-        if isCommand(message,'dig'):
+        if isCommand(message, 'dig'):
             try:
                 processDig(self, target, by, message)
             except:
                 raise
-        elif isCommand(message,'cheap'):
+        elif isCommand(message, 'cheap'):
             self.message(target, "<~Cameron> it's not expencive")
         elif isCommand(message):
             if message.find('=', len(commandprefix)) > 0:
@@ -60,7 +62,7 @@ class BanaanBot(pydle.MinimalClient):
             else:
                 processQuoteGet(self, target, by, message)
 
-def isCommand(input, command = None):
+def isCommand(input,command = None):
     if command:
         return input.startswith('{}{}'.format(config['Bot']['commandprefix'], command))
     return input.startswith(config['Bot']['commandprefix'])
@@ -401,7 +403,7 @@ config = configparser.ConfigParser()
 config.read('banaan.ini')
 commandprefix = config['Bot']['commandprefix']
 if 'Bot' in config:
-    client = BanaanBot(config['Bot']['nickname'], realname=config['Bot']['realname'])
+    client = BanaanBot(config['Bot']['nickname'], realname=config['Bot']['realname'], sasl_username='Banaan',sasl_password=config['Bot']['nickserv'],tls_client_cert='test.pem', tls_client_cert_key='test.key')
     client.connect(config['Bot']['server'], config['Bot']['port'], tls=True, tls_verify=False)
     try:
         client.handle_forever()
