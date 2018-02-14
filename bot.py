@@ -57,6 +57,11 @@ class BanaanBot(MyBaseClient):
                 processUD(self, target, by, message)
             except:
                 raise
+        elif isCommand(message, 't'):
+            try:
+                processTranslate(self,target,by,message)
+            except:
+                raise
         elif ("shit" in message) and ("bot" in message):
             self.message(target, '{}: Watch your tone.'.format(by))
         elif isCommand(message):
@@ -91,6 +96,7 @@ def processQuoteAdd(self, target, by, message):
                 conn = getDatabase()
                 conn.execute('INSERT INTO quotes (name, quote) VALUES (?, ?)', (name, quote,))
                 conn.commit()
+                self.message(target, 'item added')
             except:
                 raise
 
@@ -186,7 +192,7 @@ def processUD(self, target, by, message):
     if len(split) > 1:
         item = 0
         if len(split[1:]) > 1 and split[-1].isdigit():
-            item = int(split[-1])
+            item = (int(split[-1]) - 1) if int(split[-1]) > 0 else 0
             query = ' '.join(split[1:-1])
         else:
             query = ' '.join(split[1:])
@@ -196,10 +202,22 @@ def processUD(self, target, by, message):
         r = requests.get('https://api.urbandictionary.com/v0/define', params = params)
         if r.status_code == 200:
             data = r.json()
-            if item > len(data['list']):
-                self.message(target, 'cannot find him, over')
-                return
-            self.message(target, '{}[{}/{}] {}'.format(query, item, len(data['list']), data['list'][item]['definition'].replace('\n', ' ').replace('\r', ' ').replace('  ', ''))[:200])
+            if len(data['list']) > 0:
+                if item+1 > len(data['list']):
+                    self.message(target, 'out of range')
+                    return
+                self.message(target, '{query}[{item}/{len}] {data}'.format(
+                    query=query
+                    ,item=item+1
+                    ,len=len(data['list'])
+                    ,data=data['list'][item]['definition'].replace('\n', ' ').replace('\r', ' ').replace('  ', '')
+                    )[:256])
+            else:
+                self.message(target, 'cannot find word')
+
+def processTranslate(self, target, by, message):
+    self.message(target, 'sorry wip :-)')
+    pass
 
 def processDig(self, target, by, message):
     split = shlex.split(message, posix=True)
@@ -339,7 +357,7 @@ def querydns(query, qtype, server, do_reverse):
                             .format(
                                 answer['name']
                                 ,answer['ttl']
-                                ,'"{}"'.format(' '.join(answer['rdata']['txt_strings']))
+                                ,'"{}"'.format(''.join(answer['rdata']['txt_strings']))
                                 ))
                     elif answer['type'] == getdns.RRTYPE_CAA:
                         results_to_return['answers']. append('{0}\t{1}\tIN\tCAA\t{2} {3} {4}'
@@ -431,7 +449,7 @@ config.read('banaan.ini')
 commandprefix = config['Bot']['commandprefix']
 if 'Bot' in config:
     client = BanaanBot(config['Bot']['nickname'], realname=config['Bot']['realname'], sasl_username='Banaan',sasl_password=config['Bot']['nickserv'],tls_client_cert='test.pem', tls_client_cert_key='test.key')
-    client.connect(config['Bot']['server'], config['Bot']['port'], tls=True, tls_verify=False)
+    client.connect(config['Bot']['server'], config['Bot']['port'], tls=True, tls_verify=config['Bot']['tls_verify'])
     try:
         client.handle_forever()
     except KeyboardInterrupt:
