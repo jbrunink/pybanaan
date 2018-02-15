@@ -11,6 +11,8 @@ import base64
 import datetime
 import binascii
 import sqlite3
+import socket
+from urllib.parse import urlparse
 
 MyBaseClient = pydle.featurize(pydle.MinimalClient, pydle.features.ircv3.SASLSupport)
 
@@ -19,18 +21,16 @@ conn = None
 class BanaanBot(MyBaseClient):
     def on_connect(self):
         super().on_connect()
-        self.rawmsg('NICKSERV', 'IDENTIFY {password}'.format(password=config['Bot']['nickserv']))
         for i in config['Bot']['channels'].split(','):
             self.join(i)
-        print('connected')
     def on_unknown(self, message):
         super().on_unknown(message)
         #print(message)
     def on_raw(self, message):
         super().on_raw(message)
         print('RECEIVED: ' + str(message), end='')
-        if '464' in str(message).split(" "):
-            self.rawmsg('PASS', '{}'.format(config['Bot']['pass']))
+    def on_raw_464(self,message):
+        self.rawmsg('NICKSERV', 'IDENTIFY {password}'.format(password=config['Bot']['nickserv']))
     def on_channel_message(self, target, by, message):
         super().on_channel_message(target, by, message)
     def rawmsg(self, command, *args, **kwargs):
@@ -60,6 +60,11 @@ class BanaanBot(MyBaseClient):
         elif isCommand(message, 't'):
             try:
                 processTranslate(self,target,by,message)
+            except:
+                raise
+        elif isCommand(message, 'dd'):
+            try:
+                processDownDetector(self,target,by,message)
             except:
                 raise
         elif ("shit" in message) and ("bot" in message):
@@ -219,6 +224,21 @@ def processTranslate(self, target, by, message):
     self.message(target, 'sorry wip :-)')
     pass
 
+def processDownDetector(self, target, by, message):
+    index = message.find(' ') if message.find(' ') > 0 else None
+    if index:
+        parsed_url = urlparse(message[index+1:])
+        pprint.pprint(parsed_url)
+        if parsed_url.scheme and (parsed_url.scheme == 'http' or parsed_url.scheme == 'https'):
+            try:
+                self.message(target, 'checking if {}://{} is online'.format(parsed_url.scheme, parsed_url.netloc))
+                r = requests.get('{}://{}'.format(parsed_url.scheme, parsed_url.netloc))
+                self.message(target, '{}://{} http response {}'.format(parsed_url.scheme, parsed_url.netloc, r.status_code))
+            except Exception as e:
+                self.message(target, str(e))
+                raise
+
+
 def processDig(self, target, by, message):
     split = shlex.split(message, posix=True)
     if len(split) <= 1:
@@ -274,7 +294,6 @@ def processDig(self, target, by, message):
         self.message(target, "unknown")
 
 def querydns(query, qtype, server, do_reverse):
-    pp = pprint.PrettyPrinter(indent=4)
     ctx = getdns.Context(False)
 
     if not query:
@@ -299,6 +318,7 @@ def querydns(query, qtype, server, do_reverse):
         raise ValueError('qtype no existent')
 
     results = ctx.general(query, rrtype)
+    pprint.pprint(results.replies_full)
     results_to_return = {}
     results_to_return['answers'] = []
     results_to_return['status'] = results.status
@@ -331,11 +351,12 @@ def querydns(query, qtype, server, do_reverse):
                                 ,answer['rdata']['nsdname']
                                 ))
                     elif answer['type'] == getdns.RRTYPE_A:
+                        address = answer['rdata']['ipv4_address']
                         results_to_return['answers'].append('{0}\t{1}\tIN\tA\t{2}'
                             .format(
                                 answer['name']
                                 ,answer['ttl']
-                                ,ipaddress.ip_address(bytes(answer['rdata']['ipv4_address']))
+                                ,ipaddress.ip_address(bytes(address)) if type(address) is memoryview else socket.inet_ntop(socket.AF_INET, bytes(address, 'utf-8'))
                                 ))
                     elif answer['type'] == getdns.RRTYPE_AAAA:
                         results_to_return['answers'].append('{0}\t{1}\tIN\tAAAA\t{2}'
