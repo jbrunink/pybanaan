@@ -1,2 +1,4 @@
-getdns==1.0.0b1
 -e git+https://github.com/jbrunink/pydle#egg=pydle
+-e git+https://github.com/thobbs/pure-sasl#egg=pure-sasl
+requests==2.18.4
+getdns==1.0.0b1

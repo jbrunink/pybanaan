@@ -1,4 +1,5 @@
 import pydle
+import os
 import getdns
 import argparse
 import shlex
@@ -12,6 +13,7 @@ import datetime
 import binascii
 import sqlite3
 import socket
+import re
 from urllib.parse import urlparse
 
 MyBaseClient = pydle.featurize(pydle.MinimalClient, pydle.features.ircv3.SASLSupport)
@@ -30,7 +32,8 @@ class BanaanBot(MyBaseClient):
         super().on_raw(message)
         print('RECEIVED: ' + str(message), end='')
     def on_raw_464(self,message):
-        self.rawmsg('NICKSERV', 'IDENTIFY {password}'.format(password=config['Bot']['nickserv']))
+        if config['Bot']['nickserv']:
+            self.rawmsg('NICKSERV', 'IDENTIFY {password}'.format(password=config['Bot']['nickserv']))
     def on_channel_message(self, target, by, message):
         super().on_channel_message(target, by, message)
     def rawmsg(self, command, *args, **kwargs):
@@ -39,10 +42,15 @@ class BanaanBot(MyBaseClient):
             return
         print('SENT: ' + str(command) + str(args) + str(kwargs))
         super().rawmsg(command, *args, **kwargs)
+    def message(self, target, message):
+        print('message called')
+        message = message.replace('\1', '')
+        super().message(target, message)
     def on_message(self, target, by, message):
         if by == 'Telegram':
-            self.on_message(target, 'Banaan', message[(message.index(':')+1):].strip())
+            self.on_message(target, message[:message.index(':')], message[(message.index(':')+1):].strip())
             return
+        message = message.replace('\1', '')
         super().on_message(target, by, message)
 
         if isCommand(message, 'dig'):
@@ -79,16 +87,16 @@ class BanaanBot(MyBaseClient):
             else:
                 processQuoteGet(self, target, by, message)
 
-def isCommand(input,command = None):
+def isCommand(input,command=None):
     if command:
-        return input.startswith('{}{}'.format(config['Bot']['commandprefix'], command))
+        return input.startswith('{}{}'.format(config['Bot']['commandprefix'],command))
     return input.startswith(config['Bot']['commandprefix'])
 
 def getDatabase():
     global conn
     if conn:
         return conn
-    conn = sqlite3.connect('banaan.db')
+    conn = sqlite3.connect(config['Bot']['sqdatabase'])
     return conn
 
 def processQuoteAdd(self, target, by, message):
@@ -466,12 +474,32 @@ def uploadtext(text):
     return r.url
 
 config = configparser.ConfigParser()
+if 'DOCKER_BUILD' in os.environ:
+    os.chdir('data/')
 config.read('banaan.ini')
+if not ('Bot' in config
+    and 'nickname' in config['Bot']
+    and 'realname' in config['Bot']
+    and 'server' in config['Bot']
+    and 'port'in config['Bot']):
+    print('wot')
+    exit(1)
 commandprefix = config['Bot']['commandprefix']
-if 'Bot' in config:
-    client = BanaanBot(config['Bot']['nickname'], realname=config['Bot']['realname'], sasl_username='Banaan',sasl_password=config['Bot']['nickserv'],tls_client_cert='test.pem', tls_client_cert_key='test.key')
-    client.connect(config['Bot']['server'], config['Bot']['port'], tls=True, tls_verify=config['Bot']['tls_verify'])
-    try:
-        client.handle_forever()
-    except KeyboardInterrupt:
-        exit(0)
+client = BanaanBot(
+    config['Bot']['nickname']
+    ,realname=config['Bot']['realname']
+    ,sasl_username=config['Bot']['sasl_username'] if config['Bot']['sasl_username'] else None
+    ,sasl_password=config['Bot']['sasl_password'] if config['Bot']['sasl_password'] else None
+    ,tls_client_cert=config['Bot']['tls_client_cert'] if config['Bot']['tls_client_cert'] else None
+    ,tls_client_cert_key=config['Bot']['tls_client_cert_key'] if config['Bot']['tls_client_cert_key'] else None
+    )
+client.connect(
+    config['Bot']['server']
+    ,config['Bot']['port']
+    ,tls=config['Bot']['tls'] if config['Bot']['tls'] else False
+    ,tls_verify=config['Bot']['tls_verify'] if config['Bot']['tls_verify'] else False
+    )
+try:
+    client.handle_forever()
+except KeyboardInterrupt:
+    exit(0)
