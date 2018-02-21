@@ -32,7 +32,7 @@ class BanaanBot(MyBaseClient):
         super().on_raw(message)
         print('RECEIVED: ' + str(message), end='')
     def on_raw_464(self,message):
-        if config['Bot']['nickserv']:
+        if 'nickserv' in config['Bot']:
             self.rawmsg('NICKSERV', 'IDENTIFY {password}'.format(password=config['Bot']['nickserv']))
     def on_channel_message(self, target, by, message):
         super().on_channel_message(target, by, message)
@@ -44,7 +44,7 @@ class BanaanBot(MyBaseClient):
         super().rawmsg(command, *args, **kwargs)
     def message(self, target, message):
         print('message called')
-        message = message.replace('\1', '')
+        #message = message.replace('\1', '')
         super().message(target, message)
     def on_message(self, target, by, message):
         if by == 'Telegram':
@@ -481,23 +481,24 @@ if not ('Bot' in config
     and 'nickname' in config['Bot']
     and 'realname' in config['Bot']
     and 'server' in config['Bot']
-    and 'port'in config['Bot']):
+    and 'port' in config['Bot']
+    and 'sqdatabase' in config['Bot']):
     print('wot')
     exit(1)
-commandprefix = config['Bot']['commandprefix']
+commandprefix = config['Bot']['commandprefix'] if 'commandprefix' in config['Bot'] else '!'
 client = BanaanBot(
     config['Bot']['nickname']
     ,realname=config['Bot']['realname']
-    ,sasl_username=config['Bot']['sasl_username'] if config['Bot']['sasl_username'] else None
-    ,sasl_password=config['Bot']['sasl_password'] if config['Bot']['sasl_password'] else None
-    ,tls_client_cert=config['Bot']['tls_client_cert'] if config['Bot']['tls_client_cert'] else None
-    ,tls_client_cert_key=config['Bot']['tls_client_cert_key'] if config['Bot']['tls_client_cert_key'] else None
+    ,sasl_username=config['Bot']['sasl_username'] if 'sasl_username' in config['Bot'] else None
+    ,sasl_password=config['Bot']['sasl_password'] if 'sasl_password' in config['Bot'] else None
+    ,tls_client_cert=config['Bot']['tls_client_cert'] if 'tls_client_cert' in config['Bot'] else None
+    ,tls_client_cert_key=config['Bot']['tls_client_cert_key'] if 'tls_client_cert_key' in config['Bot'] else None
     )
 client.connect(
     config['Bot']['server']
     ,config['Bot']['port']
-    ,tls=config['Bot']['tls'] if config['Bot']['tls'] else False
-    ,tls_verify=config['Bot']['tls_verify'] if config['Bot']['tls_verify'] else False
+    ,tls=config['Bot']['tls'] if 'tls' in config['Bot'] else False
+    ,tls_verify=config['Bot']['tls_verify'] if 'tls_verify' in config['Bot'] else False
     )
 try:
     client.handle_forever()
