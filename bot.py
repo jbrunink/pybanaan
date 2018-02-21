@@ -75,6 +75,11 @@ class BanaanBot(MyBaseClient):
                 processDownDetector(self,target,by,message)
             except:
                 raise
+        elif isCommand(message, 'domain'):
+            try:
+                processDomainCheck(self,target,by,message)
+            except:
+                raise
         elif ("shit" in message) and ("bot" in message):
             self.message(target, '{}: Watch your tone.'.format(by))
         elif isCommand(message):
@@ -98,6 +103,33 @@ def getDatabase():
         return conn
     conn = sqlite3.connect(config['Bot']['sqdatabase'])
     return conn
+
+def processDomainCheck(self, target, by, message):
+    split = message.split(' ')
+    if len(split) > 1:
+        query = split[1]
+        params = {}
+        params['user'] = config['Bot']['mdr_user'] if 'mdr_user' in config['Bot'] else None
+        params['pass'] = config['Bot']['mdr_hash'] if 'mdr_hash' in config['Bot'] else None
+        params['authtype'] = 'md5'
+        params['command'] = 'whois'
+        params['type'] = 'bulk'
+        params['domeinen'] = query
+        r = requests.get('https://manager.mijndomeinreseller.nl/api/index.php', params = params)
+        if r.status_code == 200:
+            response = r.text.split('\n')
+            parsed_response = {}
+            for i in response:
+                split = i.split('=')
+                parsed_response[split[0].strip()] = split[1].strip()
+            if 'errcount' in parsed_response:
+                if int(parsed_response['errcount']) is 0:
+                    if int(parsed_response['domeincount']) > 0:
+                        str_status = 'available' if int(parsed_response['status[1]']) is 1 else 'taken'
+                        self.message(target, 'the domain {} is {}'.format(parsed_response['domein[1]'],str_status))
+                else:
+                    self.message(target, 'something went wrong with my api')
+                    print(parsed_response)
 
 def processQuoteAdd(self, target, by, message):
     index = message.find('=', len(commandprefix))
