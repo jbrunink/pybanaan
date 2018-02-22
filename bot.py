@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 MyBaseClient = pydle.featurize(pydle.MinimalClient, pydle.features.ircv3.SASLSupport)
 
 conn = None
+valid_tlds = None
 
 class BanaanBot(MyBaseClient):
     def on_connect(self):
@@ -47,6 +48,7 @@ class BanaanBot(MyBaseClient):
         #message = message.replace('\1', '')
         super().message(target, message)
     def on_message(self, target, by, message):
+        #message = bytes(message,'utf-8').encode('idna')
         if by == 'Telegram':
             self.on_message(target, message[:message.index(':')], message[(message.index(':')+1):].strip())
             return
@@ -107,7 +109,10 @@ def getDatabase():
 def processDomainCheck(self, target, by, message):
     split = message.split(' ')
     if len(split) > 1:
-        query = split[1]
+        query = bytes(split[1], 'utf-8').decode('utf-8').encode('idna').decode('utf-8')
+        if not isValidDomainTld(query):
+            self.message(target, 'not a valid tld')
+            return
         params = {}
         params['user'] = config['Bot']['mdr_user'] if 'mdr_user' in config['Bot'] else None
         params['pass'] = config['Bot']['mdr_hash'] if 'mdr_hash' in config['Bot'] else None
@@ -130,6 +135,24 @@ def processDomainCheck(self, target, by, message):
                 else:
                     self.message(target, 'something went wrong with my api')
                     print(parsed_response)
+
+def isValidDomainTld(input):
+    input = input.split('.')
+    if len(input) > 0:
+        input = input[-1:][0]
+        for i in valid_tlds:
+            if input.lower().endswith(i):
+                return True
+    return False
+
+def loadValidDomainTldList():
+    global valid_tlds
+    r = requests.get('https://data.iana.org/TLD/tlds-alpha-by-domain.txt')
+    if r.status_code == 200:
+        valid_tlds = []
+        for i in r.text.split('\n'):
+            if i and not i.startswith('#'):
+                valid_tlds.append(i.lower())       
 
 def processQuoteAdd(self, target, by, message):
     index = message.find('=', len(commandprefix))
@@ -532,6 +555,7 @@ client.connect(
     ,tls=config['Bot']['tls'] if 'tls' in config['Bot'] else False
     ,tls_verify=config['Bot']['tls_verify'] if 'tls_verify' in config['Bot'] else False
     )
+loadValidDomainTldList()
 try:
     client.handle_forever()
 except KeyboardInterrupt:
