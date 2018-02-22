@@ -110,6 +110,7 @@ def processDomainCheck(self, target, by, message):
     split = message.split(' ')
     if len(split) > 1:
         query = bytes(split[1], 'utf-8').decode('utf-8').encode('idna').decode('utf-8')
+        print(isValidDomainTld(query))
         if not isValidDomainTld(query):
             self.message(target, 'not a valid tld')
             return
@@ -127,11 +128,14 @@ def processDomainCheck(self, target, by, message):
             for i in response:
                 split = i.split('=')
                 parsed_response[split[0].strip()] = split[1].strip()
+            print(parsed_response)
             if 'errcount' in parsed_response:
                 if int(parsed_response['errcount']) is 0:
                     if int(parsed_response['domeincount']) > 0:
-                        str_status = 'available' if int(parsed_response['status[1]']) is 1 else 'taken'
+                        str_status = 'available' if int(parsed_response['status[1]']) is 1 else 'taken/unavailable/bepis'
                         self.message(target, 'the domain {} is {}'.format(parsed_response['domein[1]'],str_status))
+                    else:
+                        self.message(target,'domain could not be whoised, probably invalid, over.')
                 else:
                     self.message(target, 'something went wrong with my api')
                     print(parsed_response)
@@ -139,11 +143,8 @@ def processDomainCheck(self, target, by, message):
 def isValidDomainTld(input):
     input = input.split('.')
     if len(input) > 0:
-        input = input[-1:][0]
-        for i in valid_tlds:
-            if input.lower().endswith(i):
-                return True
-    return False
+        input = input[-1:][0].lower()
+        return input in valid_tlds
 
 def loadValidDomainTldList():
     global valid_tlds
