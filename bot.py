@@ -14,7 +14,8 @@ import binascii
 import sqlite3
 import socket
 import re
-from urllib.parse import urlparse
+import json
+from urllib.parse import urlparse, unquote
 
 MyBaseClient = pydle.featurize(pydle.MinimalClient, pydle.features.ircv3.SASLSupport)
 
@@ -35,25 +36,25 @@ class BanaanBot(MyBaseClient):
     def on_raw_464(self,message):
         if 'nickserv' in config['Bot']:
             self.rawmsg('NICKSERV', 'IDENTIFY {password}'.format(password=config['Bot']['nickserv']))
-    def on_channel_message(self, target, by, message):
-        super().on_channel_message(target, by, message)
     def rawmsg(self, command, *args, **kwargs):
         if command.startswith('WHOIS'):
             print('NOT SENT: ' + str(command) + str(args) + str(kwargs))
             return
         print('SENT: ' + str(command) + str(args) + str(kwargs))
         super().rawmsg(command, *args, **kwargs)
-    def message(self, target, message):
-        print('message called')
-        #message = message.replace('\1', '')
-        super().message(target, message)
-    def on_message(self, target, by, message):
-        #message = bytes(message,'utf-8').encode('idna')
+    def on_private_message(self, by, message):
+        super().on_private_message(by,message)
+        self.on_channel_message(by,by,message)
+    def on_channel_message(self, target, by, message):
+        print('"{}" "{}" "{}"'.format(target,by,message))
         if by == 'Telegram':
-            self.on_message(target, message[:message.index(':')], message[(message.index(':')+1):].strip())
+            self.on_channel_message(target, message[:message.index(':')], message[(message.index(':')+2):])
+            return
+        elif by == 'WhatsApp':
+            self.on_channel_message(target, message[1:message.index('>')], message[(message.index('>')+2):])
             return
         message = message.replace('\1', '')
-        super().on_message(target, by, message)
+        super().on_channel_message(target, by, message)
 
         if isCommand(message, 'dig'):
             try:
@@ -82,6 +83,10 @@ class BanaanBot(MyBaseClient):
                 processDomainCheck(self,target,by,message)
             except:
                 raise
+        elif isCommand(message,'whois'):
+            processWhois(self,target,by,message)
+        elif isCommand(message,'dict'):
+            processDictionary(self,target,by,message)
         elif ("shit" in message) and ("bot" in message):
             self.message(target, '{}: Watch your tone.'.format(by))
         elif isCommand(message):
@@ -95,9 +100,14 @@ class BanaanBot(MyBaseClient):
                 processQuoteGet(self, target, by, message)
 
 def isCommand(input,command=None):
-    if command:
-        return input.startswith('{}{}'.format(config['Bot']['commandprefix'],command))
-    return input.startswith(config['Bot']['commandprefix'])
+    if input:
+        if command:
+            split = input.split(' ')
+            if len(split) > 0:
+                return split[0] == '{}{}'.format(config['Bot']['commandprefix'],command)
+        else:
+            return input.startswith(config['Bot']['commandprefix'])
+    return False
 
 def getDatabase():
     global conn
@@ -105,6 +115,65 @@ def getDatabase():
         return conn
     conn = sqlite3.connect(config['Bot']['sqdatabase'])
     return conn
+
+def processDictionary(self,target,by,message):
+    if not 'dict_app_id' in config['Bot'] or not 'dict_app_key' in config['Bot']:
+        self.message(target,'api not setup')
+        return
+    split = shlex.split(message, posix=True)
+    if len(split) > 1:
+        item = 0
+        if len(split[1:]) > 1 and split[-1].isdigit():
+            item = (int(split[-1]) - 1) if int(split[-1]) > 0 else 0
+            query = ' '.join(split[1:-1])
+        else:
+            query = ' '.join(split[1:])
+
+        dict_entry = None
+        try:
+            conn = getDatabase()
+            cursor = conn.execute('SELECT json FROM `oxford_dict` WHERE word = ?', (query,))
+            data = cursor.fetchone()
+            if data:
+                dict_entry = json.loads(data[0])
+                print('found data db')
+            else:
+                dict_entry = getDictionaryEntry(query)
+                print('querying oxford')
+                if dict_entry:
+                    conn.execute('INSERT INTO `oxford_dict` (word, json) VALUES (?, ?)', (query, json.dumps(dict_entry),))
+                    conn.commit()
+                    print('added to db')
+        except:
+            raise
+        if dict_entry:
+            to_send_array = []
+            for i in dict_entry['results']:
+                for j in i['lexicalEntries']:
+                    for k in j['entries']:
+                        for l in k['senses']:
+                            if 'definitions' not in l:
+                                continue
+                            for m in l['definitions']:
+                                to_send_array.append('{lexicalCategory}, {definition}'.format(lexicalCategory=j['lexicalCategory'].lower(),definition=m))
+            if len(to_send_array) > 0:
+                if item+1 > len(to_send_array):
+                    self.message(target, 'out of range')
+                    return
+                self.message(target, '{word}[{index}/{len}] {value}'.format(word=query,index=item+1,len=len(to_send_array),value=to_send_array[item]))
+        else:
+            self.message(target, 'word not found over')
+
+def getDictionaryEntry(word):
+    headers = {
+        'Accept': 'application/json', 
+        'app_id': config['Bot']['dict_app_id'], 
+        'app_key': config['Bot']['dict_app_key']
+    }
+    r = requests.get('https://od-api.oxforddictionaries.com/api/v1/entries/en/'+word.lower(), headers=headers,timeout=5)
+    if int(r.status_code) != 200:
+        return None
+    return r.json()
 
 def processDomainCheck(self, target, by, message):
     split = message.split(' ')
@@ -121,7 +190,7 @@ def processDomainCheck(self, target, by, message):
         params['command'] = 'whois'
         params['type'] = 'bulk'
         params['domeinen'] = query
-        r = requests.get('https://manager.mijndomeinreseller.nl/api/index.php', params = params)
+        r = requests.get('https://manager.mijndomeinreseller.nl/api/index.php', params=params,timeout=5)
         if r.status_code == 200:
             response = r.text.split('\n')
             parsed_response = {}
@@ -140,6 +209,33 @@ def processDomainCheck(self, target, by, message):
                     self.message(target, 'something went wrong with my api')
                     print(parsed_response)
 
+def processWhois(self, target, by, message):
+    split = message.split(' ')
+    if len(split) > 1:
+        query = bytes(split[1], 'utf-8').decode('utf-8').encode('idna').decode('utf-8')
+        if not isValidDomainTld(query):
+            self.message(target, 'not a valid tld')
+            return
+        params = {}
+        params['user'] = config['Bot']['mdr_user'] if 'mdr_user' in config['Bot'] else None
+        params['pass'] = config['Bot']['mdr_hash'] if 'mdr_hash' in config['Bot'] else None
+        params['authtype'] = 'md5'
+        params['command'] = 'whois'
+        params['type'] = 'uitgebreid'
+        params['domein'] = query
+        r = requests.get('https://manager.mijndomeinreseller.nl/api/index.php', params=params,timeout=5)
+        if r.status_code == 200:
+            response = {}
+            for i in r.text.split('\n'):
+                split = i.split('=')
+                response[split[0].strip()] = split[1].strip()
+            pprint.pprint(response)
+            if 'errcount' in response:
+                if int(response['errcount']) is 0:
+                    self.message(target,uploadtext(unquote(response['result'].replace('+',' ')),900))
+                else:
+                    self.message(target, 'something went wrong with my api')
+
 def isValidDomainTld(input):
     input = input.split('.')
     if len(input) > 0:
@@ -148,7 +244,7 @@ def isValidDomainTld(input):
 
 def loadValidDomainTldList():
     global valid_tlds
-    r = requests.get('https://data.iana.org/TLD/tlds-alpha-by-domain.txt')
+    r = requests.get('https://data.iana.org/TLD/tlds-alpha-by-domain.txt',timeout=5)
     if r.status_code == 200:
         valid_tlds = []
         for i in r.text.split('\n'):
@@ -268,7 +364,7 @@ def processUD(self, target, by, message):
 
         params = {}
         params['term'] = query
-        r = requests.get('https://api.urbandictionary.com/v0/define', params = params)
+        r = requests.get('https://api.urbandictionary.com/v0/define', params=params,timeout=5)
         if r.status_code == 200:
             data = r.json()
             if len(data['list']) > 0:
@@ -296,7 +392,7 @@ def processDownDetector(self, target, by, message):
         if parsed_url.scheme and (parsed_url.scheme == 'http' or parsed_url.scheme == 'https'):
             try:
                 self.message(target, 'checking if {}://{} is online'.format(parsed_url.scheme, parsed_url.netloc))
-                r = requests.get('{}://{}'.format(parsed_url.scheme, parsed_url.netloc))
+                r = requests.head('{}://{}'.format(parsed_url.scheme, parsed_url.netloc),timeout=5)
                 self.message(target, '{}://{} http response {}'.format(parsed_url.scheme, parsed_url.netloc, r.status_code))
             except Exception as e:
                 self.message(target, str(e))
@@ -522,11 +618,11 @@ def querydns(query, qtype, server, do_reverse):
                                 ,answer['rdata']['minimum']))
     return results_to_return, results, ctx
 
-def uploadtext(text):
+def uploadtext(text, ttl=3600):
     payload = {}
     payload['content'] = text
-    payload['ttl'] = 3600
-    r = requests.post('https://p.6core.net/', data = payload)
+    payload['ttl'] = ttl
+    r = requests.post('https://p.6core.net/', data=payload,timeout=5)
     return r.url
 
 config = configparser.ConfigParser()
@@ -555,6 +651,7 @@ client.connect(
     ,config['Bot']['port']
     ,tls=config['Bot']['tls'] if 'tls' in config['Bot'] else False
     ,tls_verify=config['Bot']['tls_verify'] if 'tls_verify' in config['Bot'] else False
+    ,reconnect=False
     )
 loadValidDomainTldList()
 try:
