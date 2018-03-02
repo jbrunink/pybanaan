@@ -46,7 +46,6 @@ class BanaanBot(MyBaseClient):
         super().on_private_message(by,message)
         self.on_channel_message(by,by,message)
     def on_channel_message(self, target, by, message):
-        print('"{}" "{}" "{}"'.format(target,by,message))
         if by == 'Telegram':
             self.on_channel_message(target, message[:message.index(':')], message[(message.index(':')+2):])
             return
@@ -89,15 +88,6 @@ class BanaanBot(MyBaseClient):
             processDictionary(self,target,by,message)
         elif ("shit" in message) and ("bot" in message):
             self.message(target, '{}: Watch your tone.'.format(by))
-        elif isCommand(message):
-            if message.find('=', len(commandprefix)) > 0:
-                processQuoteAdd(self, target, by, message)
-            elif message.find('++', len(commandprefix)) > 0:
-                processKarmaPlus(self, target, by, message)
-            elif message.find('--', len(commandprefix)) > 0:
-                processKarmaMinus(self, target, by, message)
-            else:
-                processQuoteGet(self, target, by, message)
 
 def isCommand(input,command=None):
     if input:
@@ -248,87 +238,7 @@ def loadValidDomainTldList():
         valid_tlds = []
         for i in r.text.split('\n'):
             if i and not i.startswith('#'):
-                valid_tlds.append(i.lower())       
-
-def processQuoteAdd(self, target, by, message):
-    index = message.find('=', len(commandprefix))
-    if index > 0:
-        name = message[1:index].strip().lower()
-        quote = message[index+1:].strip()
-        if name and quote:
-            try:
-                conn = getDatabase()
-                conn.execute('INSERT INTO quotes (name, quote) VALUES (?, ?)', (name, quote,))
-                conn.commit()
-                self.message(target, 'item added')
-            except:
-                raise
-
-def processKarmaPlus(self, target, by, message):
-    index = message.find('++', len(commandprefix))
-    if index > 0:
-        name = message[1:index].strip().lower()
-        if name:
-            try:
-                karma = None
-                conn = getDatabase()
-                cursor = conn.execute('SELECT id, karma FROM karma WHERE name = ?', (name,))
-                data = cursor.fetchone()
-                if data:
-                    id, karma = data
-                    karma = karma + 1
-                    conn.execute('UPDATE karma SET karma = ? WHERE id = ?', (karma, id))
-                    conn.commit()
-                else:
-                    karma = 1
-                    conn.execute('INSERT INTO karma (name, karma) VALUES (?, ?)', (name, karma))
-                    conn.commit()
-                self.message(target, 'karma of {} is now {}'.format(name, karma))
-            except:
-                raise
-
-def processKarmaMinus(self, target, by, message):
-    index = message.find('--', len(commandprefix))
-    if index > 0:
-        name = message[1:index].strip().lower()
-        if name:
-            try:
-                karma = None
-                conn = getDatabase()
-                cursor = conn.execute('SELECT id, karma FROM karma WHERE name = ?', (name,))
-                data = cursor.fetchone()
-                if data:
-                    id, karma = data
-                    karma = karma - 1
-                    conn.execute('UPDATE karma SET karma = ? WHERE id = ?', (karma, id))
-                    conn.commit()
-                else:
-                    karma = -1
-                    conn.execute('INSERT INTO karma (name, karma) VALUES (?, ?)', (name, karma))
-                    conn.commit()
-                self.message(target, 'karma of {} is now {}'.format(name, karma))
-            except:
-                raise
-
-def processQuoteGet(self, target, by, message):
-    name = message[1:].strip().lower()
-    if name:
-        try:
-            conn = getDatabase()
-            cursor = conn.execute('SELECT * FROM quotes WHERE name = ?', (name,))
-            data = cursor.fetchall()
-            if data:
-                if len(data) > 1:
-                    tosend = ''
-                    for i in data:
-                        id, name, quote = i
-                        tosend = tosend + quote + ' ... '
-                    self.message(target, '{} is: {}'.format(name, tosend[:-5]))
-                else:
-                    id, name, quote = data[0]
-                    self.message(target, '{} is: {}'.format(name, quote))
-        except:
-            raise
+                valid_tlds.append(i.lower())
 
 def parseArguments(arguments):
     processed_arguments = dict()
