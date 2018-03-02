@@ -15,7 +15,7 @@ import sqlite3
 import socket
 import re
 import json
-from urllib.parse import urlparse, unquote
+import urllib.parse
 
 MyBaseClient = pydle.featurize(pydle.MinimalClient, pydle.features.ircv3.SASLSupport)
 
@@ -128,7 +128,6 @@ def processDictionary(self,target,by,message):
             query = ' '.join(split[1:-1])
         else:
             query = ' '.join(split[1:])
-
         dict_entry = None
         try:
             conn = getDatabase()
@@ -170,7 +169,8 @@ def getDictionaryEntry(word):
         'app_id': config['Bot']['dict_app_id'], 
         'app_key': config['Bot']['dict_app_key']
     }
-    r = requests.get('https://od-api.oxforddictionaries.com/api/v1/entries/en/'+word.lower(), headers=headers,timeout=5)
+    r = requests.get('https://od-api.oxforddictionaries.com/api/v1/entries/en/'+urllib.parse.quote(word.lower(),safe=''), headers=headers,timeout=5)
+    print(r.url)
     if int(r.status_code) != 200:
         return None
     return r.json()
@@ -178,18 +178,18 @@ def getDictionaryEntry(word):
 def processDomainCheck(self, target, by, message):
     split = message.split(' ')
     if len(split) > 1:
-        query = bytes(split[1], 'utf-8').decode('utf-8').encode('idna').decode('utf-8')
-        print(isValidDomainTld(query))
+        query = split[1].encode('idna').decode('utf-8')
         if not isValidDomainTld(query):
             self.message(target, 'not a valid tld')
             return
-        params = {}
-        params['user'] = config['Bot']['mdr_user'] if 'mdr_user' in config['Bot'] else None
-        params['pass'] = config['Bot']['mdr_hash'] if 'mdr_hash' in config['Bot'] else None
-        params['authtype'] = 'md5'
-        params['command'] = 'whois'
-        params['type'] = 'bulk'
-        params['domeinen'] = query
+        params = {
+            'user': config['Bot']['mdr_user'] if 'mdr_user' in config['Bot'] else None,
+            'pass': config['Bot']['mdr_hash'] if 'mdr_hash' in config['Bot'] else None,
+            'authtype': 'md5',
+            'command': 'whois',
+            'type': 'bulk',
+            'domeinen': query
+        }
         r = requests.get('https://manager.mijndomeinreseller.nl/api/index.php', params=params,timeout=5)
         if r.status_code == 200:
             response = r.text.split('\n')
@@ -199,7 +199,7 @@ def processDomainCheck(self, target, by, message):
                 parsed_response[split[0].strip()] = split[1].strip()
             print(parsed_response)
             if 'errcount' in parsed_response:
-                if int(parsed_response['errcount']) is 0:
+                if int(parsed_response['errcount']) == 0:
                     if int(parsed_response['domeincount']) > 0:
                         str_status = 'available' if int(parsed_response['status[1]']) is 1 else 'taken/unavailable/bepis'
                         self.message(target, 'the domain {} is {}'.format(parsed_response['domein[1]'],str_status))
@@ -229,10 +229,9 @@ def processWhois(self, target, by, message):
             for i in r.text.split('\n'):
                 split = i.split('=')
                 response[split[0].strip()] = split[1].strip()
-            pprint.pprint(response)
             if 'errcount' in response:
-                if int(response['errcount']) is 0:
-                    self.message(target,uploadtext(unquote(response['result'].replace('+',' ')),900))
+                if int(response['errcount']) == 0:
+                    self.message(target,uploadtext(urllib.parse.unquote_plus(response['result']),900))
                 else:
                     self.message(target, 'something went wrong with my api')
 
