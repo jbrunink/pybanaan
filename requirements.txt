@@ -1,4 +1,5 @@
--e git+https://github.com/jbrunink/pydle#egg=pydle
--e git+https://github.com/thobbs/pure-sasl#egg=pure-sasl
 requests==2.18.4
 getdns==1.0.0b1
+tornado==4.5.3
+-e git+https://github.com/jbrunink/pydle#egg=pydle
+-e git+https://github.com/thobbs/pure-sasl#egg=pure-sasl
