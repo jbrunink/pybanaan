@@ -6,7 +6,7 @@ services:
     image: banaan_app
     container_name: banaan_app
     volumes:
-      - /home/banaan/banaan_data_docker:/usr/src/app/data
+      - ./data:/usr/src/app/data
     restart: always
 
 volumes:
