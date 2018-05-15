@@ -32,15 +32,15 @@ class BanaanBot(MyBaseClient):
         #print(message)
     def on_raw(self, message):
         super().on_raw(message)
-        print('RECEIVED: ' + str(message), end='')
+        print('RECEIVED: {}'.format(str(message)), end='')
     def on_raw_464(self,message):
         if 'nickserv' in config['Bot']:
             self.rawmsg('NICKSERV', 'IDENTIFY {password}'.format(password=config['Bot']['nickserv']))
     def rawmsg(self, command, *args, **kwargs):
         if command.startswith('WHOIS'):
-            print('NOT SENT: ' + str(command) + str(args) + str(kwargs))
+            print('NOT SENT: {} {} {}'.format(str(command),str(args),str(kwargs)))
             return
-        print('SENT: ' + str(command) + str(args) + str(kwargs))
+        print('SENT: {} {} {}'.format(str(command),str(args),str(kwargs)))
         super().rawmsg(command, *args, **kwargs)
     def on_private_message(self, by, message):
         super().on_private_message(by,message)
@@ -141,6 +141,8 @@ def processDictionary(self,target,by,message):
                 for j in i['lexicalEntries']:
                     for k in j['entries']:
                         for l in k['senses']:
+                            if 'crossReferences' in l:                                
+                                to_send_array.append('{marker}, see also {crossid}'.format(marker=l['crossReferenceMarkers'][0],crossid=l['crossReferences'][0]['id']))
                             if 'definitions' not in l:
                                 continue
                             for m in l['definitions']:
@@ -241,8 +243,8 @@ def loadValidDomainTldList():
                 valid_tlds.append(i.lower())
 
 def parseArguments(arguments):
-    processed_arguments = dict()
-    positional_arguments = list()
+    processed_arguments = {}
+    positional_arguments = []
 
     for i, j in enumerate(arguments):
         if j.startswith('-') and len(j) > 2:
@@ -271,8 +273,9 @@ def processUD(self, target, by, message):
         else:
             query = ' '.join(split[1:])
 
-        params = {}
-        params['term'] = query
+        params = {
+            'term': query
+        }
         r = requests.get('https://api.urbandictionary.com/v0/define', params=params,timeout=5)
         if r.status_code == 200:
             data = r.json()
@@ -290,13 +293,12 @@ def processUD(self, target, by, message):
                 self.message(target, 'cannot find word')
 
 def processTranslate(self, target, by, message):
-    self.message(target, 'sorry wip :-)')
     pass
 
 def processDownDetector(self, target, by, message):
     index = message.find(' ') if message.find(' ') > 0 else None
     if index:
-        parsed_url = urlparse(message[index+1:])
+        parsed_url = urllib.parse.urlparse(message[index+1:])
         pprint.pprint(parsed_url)
         if parsed_url.scheme and (parsed_url.scheme == 'http' or parsed_url.scheme == 'https'):
             try:
@@ -305,7 +307,6 @@ def processDownDetector(self, target, by, message):
                 self.message(target, '{}://{} http response {}'.format(parsed_url.scheme, parsed_url.netloc, r.status_code))
             except Exception as e:
                 self.message(target, str(e))
-                raise
 
 
 def processDig(self, target, by, message):
