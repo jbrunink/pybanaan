@@ -106,18 +106,24 @@ def getDatabase():
     conn = sqlite3.connect(config['Bot']['sqdatabase'])
     return conn
 
+def parse_arraylyk_query(input):
+    split = input.split(' ')
+    index = 0
+    if len(split[1:]) > 1 and split[-1].isdigit():
+        index = (int(split[-1]) - 1) if int(split[-1]) > 0 else 0
+        query = ' '.join(split[1:-1])
+    else:
+        query = ' '.join(split[1:])
+    print(index, query)
+    return index, query
+
 def processDictionary(self,target,by,message):
     if not 'dict_app_id' in config['Bot'] or not 'dict_app_key' in config['Bot']:
         self.message(target,'api not setup')
         return
-    split = shlex.split(message, posix=True)
-    if len(split) > 1:
-        item = 0
-        if len(split[1:]) > 1 and split[-1].isdigit():
-            item = (int(split[-1]) - 1) if int(split[-1]) > 0 else 0
-            query = ' '.join(split[1:-1])
-        else:
-            query = ' '.join(split[1:])
+
+    if len(message.split(' ')) > 1:
+        item, query = parse_arraylyk_query(message)
         dict_entry = None
         try:
             conn = getDatabase()
@@ -154,6 +160,8 @@ def processDictionary(self,target,by,message):
                 self.message(target, '{word}[{index}/{len}] {value}'.format(word=query,index=item+1,len=len(to_send_array),value=to_send_array[item]))
         else:
             self.message(target, 'word not found over')
+    else:
+        self.message(target, 'what')
 
 def getDictionaryEntry(word):
     headers = {
@@ -264,14 +272,8 @@ def parseArguments(arguments):
     return processed_arguments, positional_arguments
 
 def processUD(self, target, by, message):
-    split = shlex.split(message, posix=True)
-    if len(split) > 1:
-        item = 0
-        if len(split[1:]) > 1 and split[-1].isdigit():
-            item = (int(split[-1]) - 1) if int(split[-1]) > 0 else 0
-            query = ' '.join(split[1:-1])
-        else:
-            query = ' '.join(split[1:])
+    if len(message.split(' ')) > 1:
+        item, query = parse_arraylyk_query(message)
 
         params = {
             'term': query
