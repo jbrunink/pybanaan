@@ -8,6 +8,3 @@ services:
     volumes:
       - ./data:/usr/src/app/data
     restart: always
-
-volumes:
-   data:
