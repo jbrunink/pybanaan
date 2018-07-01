@@ -12,15 +12,15 @@ import sqlite3
 import socket
 import json
 import urllib.parse
+import dns
 try:
     import getdns
     dns_enabled = True
-except:
-    pass
+except ModuleNotFoundError:
+    dns_enabled = False
 
 MyBaseClient = pydle.featurize(pydle.MinimalClient, pydle.features.ircv3.SASLSupport)
 
-dns_enabled = False
 conn = None
 valid_tlds = None
 
@@ -221,13 +221,14 @@ def processWhois(self, target, by, message):
         if not isValidDomainTld(query):
             self.message(target, 'not a valid tld')
             return
-        params = {}
-        params['user'] = config['Bot']['mdr_user'] if 'mdr_user' in config['Bot'] else None
-        params['pass'] = config['Bot']['mdr_hash'] if 'mdr_hash' in config['Bot'] else None
-        params['authtype'] = 'md5'
-        params['command'] = 'whois'
-        params['type'] = 'uitgebreid'
-        params['domein'] = query
+        params = {
+            'user': config['Bot']['mdr_user'] if 'mdr_user' in config['Bot'] else None,
+            'pass': config['Bot']['mdr_hash'] if 'mdr_hash' in config['Bot'] else None,
+            'authtype': 'md5',
+            'command': 'whois',
+            'type': 'uitgebreid',
+            'domein': query
+        }
         r = requests.get('https://manager.mijndomeinreseller.nl/api/index.php', params=params,timeout=5)
         if r.status_code == 200:
             response = {}
