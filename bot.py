@@ -1,10 +1,7 @@
 import pydle
 import os
-import getdns
-import argparse
 import shlex
 import ipaddress
-import time
 import pprint
 import requests
 import configparser
@@ -13,12 +10,17 @@ import datetime
 import binascii
 import sqlite3
 import socket
-import re
 import json
 import urllib.parse
+try:
+    import getdns
+    dns_enabled = True
+except:
+    pass
 
 MyBaseClient = pydle.featurize(pydle.MinimalClient, pydle.features.ircv3.SASLSupport)
 
+dns_enabled = False
 conn = None
 valid_tlds = None
 
@@ -56,6 +58,9 @@ class BanaanBot(MyBaseClient):
         super().on_channel_message(target, by, message)
 
         if isCommand(message, 'dig'):
+            if not dns_enabled:
+                self.message(target, 'dig is disabled')
+                return
             try:
                 processDig(self, target, by, message)
             except:
