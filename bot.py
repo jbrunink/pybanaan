@@ -24,6 +24,9 @@ MyBaseClient = pydle.featurize(pydle.MinimalClient, pydle.features.ircv3.SASLSup
 conn = None
 valid_tlds = None
 
+class Bot():
+    pass
+
 class BanaanBot(MyBaseClient):
     def on_connect(self):
         super().on_connect()
