@@ -1,4 +1,4 @@
-FROM python:3-stretch
+FROM python:3.6-stretch
 ENV DEBIAN_FRONTEND noninteractive
 ENV DOCKER_BUILD 1
 WORKDIR /usr/src/app
