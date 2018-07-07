@@ -346,7 +346,7 @@ def processDig(self, target, by, message):
     if debug:
         print('debug')
         pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(rawresults.replies_full)
+        pprint.pprint(rawresults.replies_full)
         toupload = pp.pformat(ctx.get_api_information()) + "\n" + pp.pformat(rawresults.replies_full)
         self.message(target, uploadtext(toupload))
         return
@@ -515,7 +515,7 @@ def querydns(query, qtype, server, do_reverse):
                             .format(
                                 answer['type']
                                 ))
-                        pp.pprint(answer)
+                        pprint.pprint(answer)
     else:
         for reply in results.replies_tree:
             results_to_return['question'] = reply['question']
