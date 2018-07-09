@@ -17,20 +17,47 @@ import ssl
 import irc.bot
 import irc.connection
 import logging
+import importlib
+
 conn = None
 valid_tlds = None
 
 class ConfigNotFound(Exception):
     pass
 
+class NotValidPlugin(Exception):
+    pass
+
 class Bot(irc.bot.SingleServerIRCBot):
+    config = None
+
     def __init__(self, nickname, server, port=6697, config=None):
-        logging.basicConfig(level=logging.DEBUG)
+        logging.basicConfig(level=logging.INFO)
         factory = irc.connection.Factory(wrapper=ssl.wrap_socket, ipv6=True)
         super().__init__([(server, port)],
                          nickname,
                          nickname,
                          connect_factory=factory)
+        self.config = config
+        self.loaded_plugins = []
+        self.load_plugins()
+
+    def load_plugins(self):
+        if self.config and isinstance(self.config, configparser.ConfigParser):
+            for i in self.config:
+                if i.startswith('Plugin_'):
+                    if not ('command' in self.config[i]
+                            and 'prefix' in self.config[i]):
+                        return
+                    name = i[7:]
+                    prefix = self.config[i]['prefix']
+                    command = self.config[i]['command']
+                    try:
+                        plugin = getattr(importlib.import_module('plugins.{}'.format(name)), i)
+                        instance = plugin(prefix=prefix, command=command)
+                        self.loaded_plugins.append(instance)
+                    except Exception:
+                        raise
 
     def _dispatcher(self, connection, event):
         super()._dispatcher(connection, event)
