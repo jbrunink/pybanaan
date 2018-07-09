@@ -23,6 +23,7 @@ RUN apt-get update \
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY /* /
+COPY plugins/ ./plugins/
+COPY *.py ./
 USER appuser
 CMD [ "python", "-u", "bot.py" ]

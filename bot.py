@@ -36,7 +36,7 @@ class Bot(irc.bot.SingleServerIRCBot):
     config = None
 
     def __init__(self, nickname, server, port=6697, config=None):
-        factory = irc.connection.Factory(wrapper=ssl.wrap_socket, ipv6=True)
+        factory = irc.connection.Factory(wrapper=ssl.wrap_socket)
         super().__init__([(server, port)],
                          nickname,
                          nickname,
@@ -76,7 +76,8 @@ class Bot(irc.bot.SingleServerIRCBot):
                 traceback.print_exc()
 
     def on_welcome(self, connection, event):
-        connection.join('#test')
+        for i in self.botconfig['channels'].split(','):
+            connection.join(i)
 
 
 """class BanaanBot(MyBaseClient):
