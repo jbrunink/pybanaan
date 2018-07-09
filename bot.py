@@ -22,6 +22,9 @@ import importlib
 conn = None
 valid_tlds = None
 
+logging.basicConfig(level=logging.DEBUG)
+
+
 class ConfigNotFound(Exception):
     pass
 
@@ -32,7 +35,6 @@ class Bot(irc.bot.SingleServerIRCBot):
     config = None
 
     def __init__(self, nickname, server, port=6697, config=None):
-        logging.basicConfig(level=logging.INFO)
         factory = irc.connection.Factory(wrapper=ssl.wrap_socket, ipv6=True)
         super().__init__([(server, port)],
                          nickname,
@@ -44,35 +46,30 @@ class Bot(irc.bot.SingleServerIRCBot):
 
     def load_plugins(self):
         if self.config and isinstance(self.config, configparser.ConfigParser):
-            for i in self.config:
-                if i.startswith('Plugin_'):
-                    if not ('command' in self.config[i]
-                            and 'prefix' in self.config[i]):
-                        return
-                    name = i[7:]
-                    prefix = self.config[i]['prefix']
-                    command = self.config[i]['command']
+            if 'plugins' in self.config['Bot']:
+                split = self.config['Bot']['plugins'].split(',')
+                for i in split:
                     try:
-                        plugin = getattr(importlib.import_module('plugins.{}'.format(name)), i)
-                        instance = plugin(prefix=prefix, command=command)
+                        plugin = getattr(importlib.import_module('plugins.{}'.format(i)), 'Plugin_{}'.format(i))
+                        instance = plugin()
                         self.loaded_plugins.append(instance)
                     except Exception:
                         raise
 
     def _dispatcher(self, connection, event):
+        def do_nothing(connection, event):
+            return None
+        for i in self.loaded_plugins:
+            try:
+                logging.debug("_joekel: %s", event.type)
+                method = getattr(i, "on_" + event.type, do_nothing)
+                method(connection, event)
+            except Exception:
+                raise
         super()._dispatcher(connection, event)
 
     def on_welcome(self, connection, event):
         connection.join('#test')
-
-    def on_all_raw_messages(self, connection, event):
-        pass
-
-    def on_pubmsg(self, connection, event):
-        pass
-
-    def on_privmsg(self, connection, event):
-        pass
 
 
 """class BanaanBot(MyBaseClient):
