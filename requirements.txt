@@ -3,3 +3,4 @@ dnspython
 tornado==4.5.3
 -e git+https://github.com/jbrunink/pydle#egg=pydle
 -e git+https://github.com/thobbs/pure-sasl#egg=pure-sasl
+irc==16.3

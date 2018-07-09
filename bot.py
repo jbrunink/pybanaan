@@ -13,21 +13,42 @@ import socket
 import json
 import urllib.parse
 import dns
-try:
-    import getdns
-    dns_enabled = True
-except ModuleNotFoundError:
-    dns_enabled = False
-
-MyBaseClient = pydle.featurize(pydle.MinimalClient, pydle.features.ircv3.SASLSupport)
-
+import ssl
+import irc.bot
+import irc.connection
+import logging
 conn = None
 valid_tlds = None
 
-class Bot():
+class ConfigNotFound(Exception):
     pass
 
-class BanaanBot(MyBaseClient):
+class Bot(irc.bot.SingleServerIRCBot):
+    def __init__(self, nickname, server, port=6697, config=None):
+        logging.basicConfig(level=logging.DEBUG)
+        factory = irc.connection.Factory(wrapper=ssl.wrap_socket, ipv6=True)
+        super().__init__([(server, port)],
+                         nickname,
+                         nickname,
+                         connect_factory=factory)
+
+    def _dispatcher(self, connection, event):
+        super()._dispatcher(connection, event)
+
+    def on_welcome(self, connection, event):
+        connection.join('#test')
+
+    def on_all_raw_messages(self, connection, event):
+        pass
+
+    def on_pubmsg(self, connection, event):
+        pass
+
+    def on_privmsg(self, connection, event):
+        pass
+
+
+"""class BanaanBot(MyBaseClient):
     def on_connect(self):
         super().on_connect()
         for i in config['Bot']['channels'].split(','):
@@ -579,3 +600,32 @@ try:
     client.handle_forever()
 except KeyboardInterrupt:
     exit(0)
+"""
+
+def parse_args(args):
+    import argparse
+    p = argparse.ArgumentParser()
+    p.add_argument('-c', dest='config', default='banaan.cfg', type=str)
+    return p.parse_args(args)
+
+if __name__ == '__main__':
+    import sys
+    config = configparser.ConfigParser()
+    args = parse_args(sys.argv[1:])
+    if os.path.isfile(args.config):
+        config.read(args.config)
+        if not ('Bot' in config
+                and 'nickname' in config['Bot']
+                and 'realname' in config['Bot']
+                and 'server' in config['Bot']
+                and 'port' in config['Bot']
+                and 'sqdatabase' in config['Bot']):
+            exit(1)
+    else:
+        raise ConfigNotFound
+    bot = Bot(nickname=config['Bot']['nickname'], server=config['Bot']['server'], port=int(config['Bot']['port']), config=config)
+    try:
+        bot.start()
+    except KeyboardInterrupt:
+        bot.disconnect(msg='bye')
+
