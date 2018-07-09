@@ -29,6 +29,6 @@ RUN wget https://getdnsapi.net/dist/getdns-1.3.0.tar.gz \
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-COPY bot.py .
+COPY * /
 USER appuser
 CMD [ "python", "-u", "bot.py" ]
