@@ -17,6 +17,7 @@ import ssl
 import irc.bot
 import irc.connection
 import logging
+import traceback
 import importlib
 
 conn = None
@@ -41,32 +42,38 @@ class Bot(irc.bot.SingleServerIRCBot):
                          nickname,
                          connect_factory=factory)
         self.config = config
+        self.botconfig = self.config['Bot'] if 'Bot' in self.config else None
         self.loaded_plugins = []
         self.load_plugins()
 
     def load_plugins(self):
         if self.config and isinstance(self.config, configparser.ConfigParser):
-            if 'plugins' in self.config['Bot']:
-                split = self.config['Bot']['plugins'].split(',')
-                for i in split:
+            for i in self.config:
+                if i.startswith('Plugin_'):
+                    name = i[7:]
+                    commandprefix = self.config[i]['commandprefix'] if 'commandprefix' in self.config[i] else self.botconfig['commandprefix']
+                    command = self.config[i]['command']
                     try:
-                        plugin = getattr(importlib.import_module('plugins.{}'.format(i)), 'Plugin_{}'.format(i))
-                        instance = plugin()
+                        plugin = getattr(importlib.import_module('plugins.{}'.format(name)), 'Plugin_{}'.format(name))
+                        instance = plugin(bot=self, command=command, commandprefix=commandprefix)
                         self.loaded_plugins.append(instance)
+                    except ModuleNotFoundError:
+                        pass
                     except Exception:
                         raise
 
     def _dispatcher(self, connection, event):
+        super()._dispatcher(connection, event)
         def do_nothing(connection, event):
             return None
         for i in self.loaded_plugins:
             try:
-                logging.debug("_joekel: %s", event.type)
-                method = getattr(i, "on_" + event.type, do_nothing)
-                method(connection, event)
+                if event.type in ['pubmsg']:
+                    logging.debug("_dispatcher: %s", i)
+                    method = getattr(i, "on_" + event.type, do_nothing)
+                    method(connection, event)
             except Exception:
-                raise
-        super()._dispatcher(connection, event)
+                traceback.print_exc()
 
     def on_welcome(self, connection, event):
         connection.join('#test')
