@@ -1,10 +1,9 @@
 version: '3'
 
 services:
-  banaan_app:
+  banaan:
     build: .
-    image: banaan_app
-    container_name: banaan_app
+    image: banaan
     volumes:
       - ./data:/usr/src/app/data
-    restart: always
+    restart: unless-stopped

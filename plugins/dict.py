@@ -9,7 +9,7 @@ import urllib
 import pprint
 
 class Plugin_dict(baseplugin.BasePlugin):
-    def on_pubmsg(self, connection, event):
+    def on_pubmsg(self, connection, event, bot):
         if not event.arguments[0].startswith('{prefix}{command}'.format(prefix=self.commandprefix, command=self.command)):
             return
         input = event.arguments[0]

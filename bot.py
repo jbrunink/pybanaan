@@ -1,4 +1,3 @@
-import pydle
 import os
 import shlex
 import ipaddress
@@ -19,6 +18,8 @@ import irc.connection
 import logging
 import traceback
 import importlib
+import time
+from threading import Thread
 
 conn = None
 valid_tlds = None
@@ -34,17 +35,33 @@ class NotValidPlugin(Exception):
 
 class Bot(irc.bot.SingleServerIRCBot):
     config = None
+    last_activity = time.time()
+    connection_checker_thread = None
 
     def __init__(self, nickname, server, port=6697, config=None):
         factory = irc.connection.Factory(wrapper=ssl.wrap_socket)
         super().__init__([(server, port)],
                          nickname,
                          nickname,
+                         recon=irc.bot.ExponentialBackoff(),
                          connect_factory=factory)
+        connection_checker_thread = Thread(target=self.connection_checker, args=(self,))
+        connection_checker_thread.start()
         self.config = config
         self.botconfig = self.config['Bot'] if 'Bot' in self.config else None
         self.loaded_plugins = []
         self.load_plugins()
+
+    def connection_checker(self, bot):
+        print('started checker')
+        while True:
+            if bot.connection.is_connected:
+                print(time.time() - bot.last_activity)
+                if (time.time() - bot.last_activity) > 180:
+                    bot.disconnect()
+                    print('disconnecting')
+            time.sleep(180)
+
 
     def load_plugins(self):
         if self.config and isinstance(self.config, configparser.ConfigParser):
@@ -64,14 +81,15 @@ class Bot(irc.bot.SingleServerIRCBot):
 
     def _dispatcher(self, connection, event):
         super()._dispatcher(connection, event)
-        def do_nothing(connection, event):
+        self.last_activity = time.time()
+        def do_nothing(connection, event, bot=None):
             return None
         for i in self.loaded_plugins:
             try:
                 if event.type in ['pubmsg']:
                     logging.debug("_dispatcher: %s", i)
                     method = getattr(i, "on_" + event.type, do_nothing)
-                    method(connection, event)
+                    method(connection, event, self)
             except Exception:
                 traceback.print_exc()
 
@@ -644,6 +662,7 @@ if __name__ == '__main__':
     import sys
     config = configparser.ConfigParser()
     args = parse_args(sys.argv[1:])
+    args.config = args.config.strip()
     if os.path.isfile(args.config):
         config.read(args.config)
         if not ('Bot' in config

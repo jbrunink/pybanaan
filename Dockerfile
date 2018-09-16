@@ -7,23 +7,11 @@ RUN groupadd -g 999 appuser && \
     useradd -r -u 999 -g appuser appuser -d /usr/src/app
 RUN chown appuser.appuser /usr/src/app
 
-RUN apt-get update \
-	&& apt-get upgrade -y \
-	&& apt-get install -y --no-install-recommends \
-					build-essential \
-					libunbound-dev \
-					libidn11-dev \
-					libssl-dev \
-					libtool \
-					m4 \
-					autoconf \
-					apt-utils \
-	&& rm -rf /var/lib/apt/lists/*
+COPY Pipfile* ./
+RUN pip install pipenv
 
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
+RUN pipenv install --system --deploy
 COPY plugins/ ./plugins/
 COPY *.py ./
 USER appuser
-CMD [ "python", "-u", "bot.py" ]
+CMD [ "python", "-u", "bot.py", "-c", "data/banaan.ini" ]
